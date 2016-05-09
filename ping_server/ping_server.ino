@@ -23,6 +23,13 @@
 
 typedef byte PayloadType[PAYLOAD_SIZE];
 
+
+volatile bool sendInterrupt = false;
+
+void setSend1() {
+  sendInterrupt = true;
+}
+
 void setup(){
   Serial.begin(9600);
   
@@ -40,31 +47,29 @@ void setup(){
   Mirf.config();
   
   Serial.println("Listening..."); 
-  /*
+ 
   PayloadType payload;
   payload[0] = 'a';
   payload[1] = 'b';
   payload[2] = 0;
-  Mirf.send((byte*)&payload);
-  while(Mirf.isSending());
-  */
+  //Mirf.setTADDR((byte*)MASTER_ADDR);
+  //Mirf.send((byte*)&payload);
+  
 }
 
 void loop(){
    
-  byte data[Mirf.payload];
+  PayloadType payload;
   
   if(!Mirf.isSending() && Mirf.dataReady()){
     Serial.println("Got packet");
     
     /* Get load the packet into the buffer */
-    Mirf.getData(data);
-    
-    /* Set the send address. */ 
-    Mirf.setTADDR((byte *)MASTER_ADDR);
-    
+    Mirf.getData((byte*)payload);
+    Serial.println((char*)payload);
     /* Send the data to the server */
-    Mirf.send(data);
+    Mirf.setTADDR((byte*)MASTER_ADDR);
+    Mirf.send((byte*)payload);
     
     /*
      * Wait untill sending has finished

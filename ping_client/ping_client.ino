@@ -55,13 +55,11 @@ void loop(){
     if (serialInputString.startsWith("send")) {
           String addr = serialInputString.substring(4,8);
           String message = serialInputString.substring(8);
-          Serial.println(addr + ":" + message);
           /**/
           Mirf.setTADDR((byte*)addr.c_str());
           Mirf.send((byte*)message.c_str());
           while(Mirf.isSending());
-          //payload[0] = 0;
-          Serial.println("Data sent");
+          payload[0] = 0;
           /*end*/
     } else {
       Serial.println("Unknown command: " + serialInputString);
@@ -73,7 +71,6 @@ void loop(){
   delay(10);
   while(!Mirf.dataReady()){
     if ( ( millis() - timeoutTime ) > 1000 ) {
-      Serial.println("Timeout");
       return;
     }
   }
@@ -82,42 +79,6 @@ void loop(){
   Serial.println((char*)&payload);
 
 }
-
-
-  /* =========================== */
-  /*
-  unsigned long time = millis();
-  PayloadType payload;
-
-  Mirf.setTADDR((byte *)"serv1");
-
-  payload[0] = 'a';
-  payload[1] = 'd';
-  payload[2] = 0;
-  
-  Mirf.send((byte *)&payload);
-  
-  while(Mirf.isSending()){
-  }
-  
-  Serial.println("Finished sending");
-  delay(10);
-  while(!Mirf.dataReady()){
-    //Serial.println("Waiting");
-    if ( ( millis() - time ) > 1000 ) {
-      Serial.println("Timeout on response from server!");
-      return;
-    }
-  }
-  
-  Mirf.getData((byte *) &payload);
-  
-  Serial.print("Ping: ");
-  Serial.println((millis() - time));
-  Serial.println((char*)&payload);
-  time = millis();
-  delay(1000);
-  */
   
 /**
  * https://www.arduino.cc/en/Tutorial/SerialEvent
