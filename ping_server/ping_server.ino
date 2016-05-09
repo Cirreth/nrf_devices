@@ -23,13 +23,6 @@
 
 typedef byte PayloadType[PAYLOAD_SIZE];
 
-
-volatile bool sendInterrupt = false;
-
-void setSend1() {
-  sendInterrupt = true;
-}
-
 void setup(){
   Serial.begin(9600);
   
@@ -45,36 +38,52 @@ void setup(){
   
   /* Write channel and payload config then power up reciver. */
   Mirf.config();
+
+  pinMode(3, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(3), btn3Interrupt, CHANGE);
   
   Serial.println("Listening..."); 
- 
-  PayloadType payload;
-  payload[0] = 'a';
-  payload[1] = 'b';
-  payload[2] = 0;
-  //Mirf.setTADDR((byte*)MASTER_ADDR);
-  //Mirf.send((byte*)&payload);
-  
 }
 
+volatile bool sendInterrupt = false;
+PayloadType payload;
+
 void loop(){
-   
-  PayloadType payload;
+  
+  if (sendInterrupt == true) {
+    sendInterrupt = false;
+    Serial.println("Interrupt");
+    send1();
+  }
   
   if(!Mirf.isSending() && Mirf.dataReady()){
     Serial.println("Got packet");
     
     /* Get load the packet into the buffer */
-    Mirf.getData((byte*)payload);
-    Serial.println((char*)payload);
+    Mirf.getData((byte*)&payload);
+    Serial.println((char*)&payload);
     /* Send the data to the server */
     Mirf.setTADDR((byte*)MASTER_ADDR);
-    Mirf.send((byte*)payload);
+    Mirf.send((byte*)&payload);
     
     /*
      * Wait untill sending has finished
      * NB: isSending returns the chip to receving after returning true.
     */  
     Serial.println("Reply sent.");
+    
   }
+
 }
+
+void sendAny() {
+  payload[0] = 'a';
+  payload[1] = 'b';
+  payload[2] = 0; 
+  Mirf.send((byte*)&payload);
+}
+
+void setSend1() {
+  sendInterrupt = true;
+}
+
