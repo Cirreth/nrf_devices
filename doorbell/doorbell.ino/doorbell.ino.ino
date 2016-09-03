@@ -74,7 +74,7 @@ void setup(){
   digitalWrite(DOORBELL_LED1, LOW);
   attachInterrupt(digitalPinToInterrupt(DOORBELL_BTN), doorbellInterrupt, FALLING );
   
-  Serial.println("V0.25 Listening..."); 
+  Serial.println("V0.3 Listening..."); 
 }
 
 volatile bool doorbellTriggered = false;
@@ -91,7 +91,6 @@ void loop(){
     sendDoorbell();
   }
 
-
   if (doorbellTimeout > 0 and millis() - doorbellTimeout > DOORBELL_LOCK_TIMEOUT) {
     doorbellTimeout = 0;
     digitalWrite(DOORBELL_LED1, LOW); 
@@ -102,27 +101,26 @@ void loop(){
     
     /* Get load the packet into the buffer */
     Mirf.getData((byte*)&payload);
-    Serial.print((char*)&payload);
+    Serial.println((char*)&payload);
 
-    Mirf.setTADDR((byte*)MASTER_ADDR);
-    Mirf.send((byte*)&payload);
-    
-    /*
-     * Wait untill sending has finished
-     * NB: isSending returns the chip to receving after returning true.
-    */  
-    
+    performCommand((char*)&payload);
 
   }
 
 }
 
 void performCommand(char* command) {
-  if (strcmp(command, "lock")) {
+  if (strcmp(command, "lock") == 0) {
     Serial.println("Lock recognized");
+    sendComplete();
     lockMailBox();
+  } else if (strcmp(command, "unlock") == 0) {
+    Serial.println("Unlock recognized");
+    sendComplete();
+    unlockMailBox();
   } else {
-    Serial.println("Unknown command: " + *command);
+    Serial.print("Unknown command: ");
+    Serial.println(command);
   }
 }
 
@@ -164,11 +162,7 @@ void sendComplete() {
   payload[0] = 'o';
   payload[1] = 'k';
   payload[2] = 0;
-  sendToMaster();
+  Mirf.send((byte*)&payload);
 }
 
-void sendToMaster() {
-  Mirf.send((byte*)&payload); 
-  while (Mirf.isSending());
-}
 
