@@ -56,6 +56,8 @@ void loop(){
           String addr = serialInputString.substring(4,8);
           String message = serialInputString.substring(8);
           /**/
+          
+          /**/
           Mirf.setTADDR((byte*)addr.c_str());
           Mirf.send((byte*)message.c_str());
           while(Mirf.isSending());

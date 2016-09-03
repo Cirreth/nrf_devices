@@ -13,11 +13,26 @@
  *
  */
 
+/**
+ * Периферия:
+ *   1. nrf24l01
+ *   2. Сенсорная кнопка дверного звонка 
+ *   3. Лампа системы проверки наличия содержимого
+ *   4. Приемник системы проверки наличия содержимого
+ *   5. Сервопривод замка
+ *   6. Индикация состояния звонка
+ * ----------
+ * Коммуникация:
+ *   1. Отправка сообщения при нажатии на кнопку звонка
+ *   2. Ответ на за
+ */
+
 #include <SPI.h>
 #include <Mirf.h>
 #include <nRF24L01.h>
 #include <MirfHardwareSpiDriver.h>
 
+#define MAILBOX_PIN 2
 #define DOORBELL_BTN 3
 #define DOORBELL_LED1 10
 #define DOORBELL_LOCK_TIMEOUT 7500
@@ -44,10 +59,12 @@ void setup(){
   /* Write channel and payload config then power up reciver. */
   Mirf.config();
 
+  pinMode(MAILBOX_PIN, INPUT_PULLUP);
+  /**/
   pinMode(DOORBELL_BTN, INPUT_PULLUP);
   pinMode(DOORBELL_LED1, OUTPUT);
   digitalWrite(DOORBELL_LED1, LOW);
-  attachInterrupt(digitalPinToInterrupt(DOORBELL_BTN), doorbellInterrupt, FALLING);
+  attachInterrupt(digitalPinToInterrupt(DOORBELL_BTN), doorbellInterrupt, FALLING );
   
   Serial.println("Listening..."); 
 }
@@ -65,6 +82,7 @@ void loop(){
     Serial.println("Interrupt");
     sendDoorbell();
   }
+
 
   if (doorbellTimeout > 0 and millis() - doorbellTimeout > DOORBELL_LOCK_TIMEOUT) {
     doorbellTimeout = 0;
@@ -89,6 +107,18 @@ void loop(){
     
   }
 
+}
+
+bool readMailboxState() {
+  return digitalRead(MAILBOX_PIN)== HIGH; 
+}
+
+void sendMailboxState(bool state) {
+  payload[0] = 'm';
+  payload[1] = 'b';
+  payload[2] = state; 
+  payload[3] = 0;
+  Mirf.send((byte*)&payload);
 }
 
 void sendDoorbell() {

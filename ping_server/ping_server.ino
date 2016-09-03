@@ -40,7 +40,7 @@ void setup(){
   Mirf.config();
 
   pinMode(3, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(3), btn3Interrupt, CHANGE);
+  //attachInterrupt(digitalPinToInterrupt(3), btn3Interrupt, CHANGE);
   
   Serial.println("Listening..."); 
 }
@@ -53,7 +53,7 @@ void loop(){
   if (sendInterrupt == true) {
     sendInterrupt = false;
     Serial.println("Interrupt");
-    send1();
+    //send1();
   }
   
   if(!Mirf.isSending() && Mirf.dataReady()){
