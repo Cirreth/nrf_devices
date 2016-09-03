@@ -31,6 +31,7 @@
 #include <Mirf.h>
 #include <nRF24L01.h>
 #include <MirfHardwareSpiDriver.h>
+#include <Servo.h>
 
 #define MAILBOX_PIN 2
 #define DOORBELL_BTN 3
@@ -39,12 +40,18 @@
 
 
 #define PAYLOAD_SIZE 16
-#define MASTER_ADDR "m1"
+#define MASTER_ADDR "serv"
 
 typedef byte PayloadType[PAYLOAD_SIZE];
 
+Servo doorlockServo;
+const int DOORLOCK_SERVO_LOCKED_POS = 40;
+const int DOORLOCK_SERVO_UNLOCKED_POS = 90;
+
 void setup(){
   Serial.begin(9600);
+
+  
   
   /* Set the SPI Driver. */
   Mirf.spi = &MirfHardwareSpi;
@@ -54,6 +61,7 @@ void setup(){
   
   /* Configure reciving address. */
   Mirf.setRADDR((byte *)"cli1");
+  Mirf.setTADDR((byte*)MASTER_ADDR);
   Mirf.payload = PAYLOAD_SIZE;
   
   /* Write channel and payload config then power up reciver. */
@@ -66,7 +74,7 @@ void setup(){
   digitalWrite(DOORBELL_LED1, LOW);
   attachInterrupt(digitalPinToInterrupt(DOORBELL_BTN), doorbellInterrupt, FALLING );
   
-  Serial.println("Listening..."); 
+  Serial.println("V0.25 Listening..."); 
 }
 
 volatile bool doorbellTriggered = false;
@@ -94,8 +102,8 @@ void loop(){
     
     /* Get load the packet into the buffer */
     Mirf.getData((byte*)&payload);
-    Serial.println((char*)&payload);
-    /* Send the data to the server */
+    Serial.print((char*)&payload);
+
     Mirf.setTADDR((byte*)MASTER_ADDR);
     Mirf.send((byte*)&payload);
     
@@ -103,10 +111,19 @@ void loop(){
      * Wait untill sending has finished
      * NB: isSending returns the chip to receving after returning true.
     */  
-    Serial.println("Reply sent.");
     
+
   }
 
+}
+
+void performCommand(char* command) {
+  if (strcmp(command, "lock")) {
+    Serial.println("Lock recognized");
+    lockMailBox();
+  } else {
+    Serial.println("Unknown command: " + *command);
+  }
 }
 
 bool readMailboxState() {
@@ -130,5 +147,28 @@ void doorbellInterrupt() {
   if (doorbellTimeout == 0) {
     doorbellTriggered = true;
   }
+}
+
+void unlockMailBox() {
+ doorlockServo.write(DOORLOCK_SERVO_UNLOCKED_POS);
+ sendComplete();
+}
+
+void lockMailBox() {
+ doorlockServo.write(DOORLOCK_SERVO_LOCKED_POS);
+ sendComplete();
+}
+
+void sendComplete() {
+  //byte[] data = "ok";
+  payload[0] = 'o';
+  payload[1] = 'k';
+  payload[2] = 0;
+  sendToMaster();
+}
+
+void sendToMaster() {
+  Mirf.send((byte*)&payload); 
+  while (Mirf.isSending());
 }
 

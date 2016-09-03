@@ -39,7 +39,7 @@ void setup(){
   Mirf.spi = &MirfHardwareSpi;
   Mirf.init();
    
-  Mirf.setRADDR((byte *)"m1");
+  Mirf.setRADDR((byte *)"serv");
   Mirf.payload = PAYLOAD_SIZE; 
   Mirf.config();
   
@@ -76,8 +76,9 @@ void loop(){
       return;
     }
   }
-  
+
   Mirf.getData((byte*)&payload);
+  Serial.print("Received: ");
   Serial.println((char*)&payload);
 
 }
