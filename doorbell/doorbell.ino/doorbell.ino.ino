@@ -102,6 +102,7 @@ void loop(){
     /* Get load the packet into the buffer */
     Mirf.getData((byte*)&payload);
     Serial.println((char*)&payload);
+    Mirf.setTADDR((byte*)MASTER_ADDR);
 
     performCommand((char*)&payload);
 
@@ -110,17 +111,18 @@ void loop(){
 }
 
 void performCommand(char* command) {
-  if (strcmp(command, "lock") == 0) {
+  if (strcmp(command, "lock\n") == 0) {
     Serial.println("Lock recognized");
-    sendComplete();
     lockMailBox();
+    sendComplete();
   } else if (strcmp(command, "unlock") == 0) {
     Serial.println("Unlock recognized");
-    sendComplete();
     unlockMailBox();
+    sendComplete();
   } else {
     Serial.print("Unknown command: ");
     Serial.println(command);
+    Mirf.send((byte*)&payload);
   }
 }
 
