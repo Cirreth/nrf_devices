@@ -51,7 +51,7 @@ const int DOORLOCK_SERVO_UNLOCKED_POS = 90;
 void setup(){
   Serial.begin(9600);
 
-  
+  Serial.println("Test serial");
   
   /* Set the SPI Driver. */
   Mirf.spi = &MirfHardwareSpi;
@@ -60,7 +60,7 @@ void setup(){
   Mirf.init();
   
   /* Configure reciving address. */
-  Mirf.setRADDR((byte *)"cli1");
+  Mirf.setRADDR((byte *)"mbox");
   Mirf.setTADDR((byte*)MASTER_ADDR);
   Mirf.payload = PAYLOAD_SIZE;
   
@@ -73,8 +73,9 @@ void setup(){
   pinMode(DOORBELL_LED1, OUTPUT);
   digitalWrite(DOORBELL_LED1, LOW);
   attachInterrupt(digitalPinToInterrupt(DOORBELL_BTN), doorbellInterrupt, FALLING );
-  
-  Serial.println("V0.3 Listening..."); 
+
+  lockMailBox();
+  Serial.println("V0.5 Listening..."); 
 }
 
 volatile bool doorbellTriggered = false;
@@ -111,7 +112,7 @@ void loop(){
 }
 
 void performCommand(char* command) {
-  if (strcmp(command, "lock\n") == 0) {
+  if (strcmp(command, "lock") == 0) {
     Serial.println("Lock recognized");
     lockMailBox();
     sendComplete();
@@ -122,6 +123,7 @@ void performCommand(char* command) {
   } else {
     Serial.print("Unknown command: ");
     Serial.println(command);
+    Mirf.setTADDR((byte*)MASTER_ADDR);
     Mirf.send((byte*)&payload);
   }
 }
@@ -141,6 +143,7 @@ void sendMailboxState(bool state) {
 void sendDoorbell() {
   payload[0] = 'd'; payload[1] = 'b'; payload[2] = 0;
   Mirf.send((byte*)&payload);
+  while(Mirf.isSending());
 }
 
 void doorbellInterrupt() {
@@ -152,11 +155,13 @@ void doorbellInterrupt() {
 void unlockMailBox() {
  doorlockServo.write(DOORLOCK_SERVO_UNLOCKED_POS);
  sendComplete();
+ digitalWrite(10, HIGH);
 }
 
 void lockMailBox() {
  doorlockServo.write(DOORLOCK_SERVO_LOCKED_POS);
  sendComplete();
+ digitalWrite(10, LOW);
 }
 
 void sendComplete() {

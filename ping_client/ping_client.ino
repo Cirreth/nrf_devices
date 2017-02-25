@@ -32,10 +32,11 @@ PayloadType payload;
 
 void setup(){
   Serial.begin(9600);
+  Serial.println("Beginning...");
   /*
   Mirf.cePin = 7;
   Mirf.csnPin = 8;
-  */
+  */ 
   Mirf.spi = &MirfHardwareSpi;
   Mirf.init();
    
