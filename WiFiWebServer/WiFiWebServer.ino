@@ -9,13 +9,17 @@
 
 #include <ESP8266WiFi.h>
 
+#define DEBUG false
+
 const char* ssid = "SHomeNet";
 const char* password = "pass0passx";
+const char* SERVER_HOST = "192.168.1.2";
 
 // Create an instance of the server
 // specify the port to listen on as an argument
 WiFiServer server(80);
 WiFiClient client;
+
 
 enum States {INIT, READY};
 States state = INIT;
@@ -65,9 +69,10 @@ void serialFlush(){
 }
 
 void sendToServer(String data) {
-  if (client.connect("192.168.1.2", 10001)) {
+  if (client.connect(SERVER_HOST, 10001)) {
       client.println("GET /" + data + " HTTP/1.1");
-      client.println("Host: 192.168.1.2");
+      client.print("Host: ");
+      client.println(SERVER_HOST);
       client.println("Connection: close");
       client.println();
       Serial.println("ok");
@@ -76,7 +81,7 @@ void sendToServer(String data) {
 
 void setup() {
   Serial.begin(19200);
-  Serial.setTimeout(100);
+  Serial.setTimeout(1000);
   delay(10);
 
   // prepare GPIO2
@@ -106,6 +111,7 @@ void setup() {
   Serial.println(WiFi.localIP());
 }
 
+unsigned long readBeforeTime = 0;
 
 void loop() {
   if (state == INIT) {
@@ -119,24 +125,35 @@ void loop() {
     }
   }
 
-  // Read serial data
-  String ctrlrPushStr = Serial.readStringUntil('\n');
-  ctrlrPushStr.replace("\r", "");
-  if (ctrlrPushStr != NULL) {
-    sendToServer(ctrlrPushStr);
+  if (Serial.available()) {
+    if (DEBUG) Serial.println("Read serial (controller initiative) data");
+    // Read serial data
+    String ctrlrPushStr = Serial.readStringUntil('\n');
+    ctrlrPushStr.replace("\r", "");
+    if (ctrlrPushStr != NULL) {
+      sendToServer(ctrlrPushStr);
+    }
+    serialFlush();
   }
-  serialFlush();
 
   // Check if a client has connected
   WiFiClient client = server.available();
   if (!client) {
     return;
   }
+  if (DEBUG) Serial.println("Client connected. Read.");
   
   // Wait until the client sends some data
+  readBeforeTime = millis() + 500;
   while(!client.available()){
+    if (millis() > readBeforeTime) {
+      if (DEBUG) Serial.println("Read aborted by timeout");
+      return;
+    }    
     delay(1);
   }
+
+  if (DEBUG) Serial.println("Data received. Read client.");
   
   // Read the first line of the request
   String req = client.readStringUntil('\r');

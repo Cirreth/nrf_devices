@@ -22,12 +22,18 @@
 #define DOORBELL_PIN_2 2
 #define CONTENT_SENSOR 15
 #define CONTENT_SENSOR_LED 8
-#define DOORBELL_LED1 11
+#define DOORBELL_LED_B 11
+#define DOORBELL_LED_R 5
+#define DOORBELL_LED_G 6
 #define ONBOARD_LED 13
+#define SERVO_CONTROL_PIN 9
 #define DOORBELL_LOCK_TIMEOUT 15000
 
-#define DOORBELL_BLINK_COUNT 16
-#define DOORBELL_AMBIENT_LEVEL 30
+#define DOORBELL_BLINK_COUNT 10
+#define DOORBELL_AMBIENT_LEVEL 50
+#define CONTENT_SENSOR_TRESHOLD 650
+
+#define DEBUG false
 
 // sensor button
 // 10M resistor between pins 4 & 2, pin 2 is sensor pin, add a wire and foil
@@ -36,35 +42,59 @@ unsigned long csSum;
 // -- sensor button end --
 
 Servo doorlockServo;
-const int DOORLOCK_SERVO_LOCKED_POS = 80;
-const int DOORLOCK_SERVO_UNLOCKED_POS = 180;
+const int DOORLOCK_SERVO_LOCKED_POS = 50;
+const int DOORLOCK_SERVO_UNLOCKED_POS = 90;
 
 void setup(){
-  Serial.begin(9600);
+  Serial.begin(19200);
   Serial.setTimeout(50);
   
-  doorlockServo.attach(9);
+  doorlockServo.attach(SERVO_CONTROL_PIN);
   pinMode(MAILBOX_PIN, INPUT_PULLUP);
   /**/
   pinMode(ONBOARD_LED, OUTPUT);
   pinMode(CONTENT_SENSOR_LED, OUTPUT);
-  pinMode(CONTENT_SENSOR, INPUT);
+//  pinMode(CONTENT_SENSOR, INPUT);
   
   digitalWrite(CONTENT_SENSOR_LED, HIGH);
-  analogWrite(DOORBELL_LED1, DOORBELL_AMBIENT_LEVEL);
+  analogWrite(DOORBELL_LED_G, 1.5*DOORBELL_AMBIENT_LEVEL);
+  analogWrite(DOORBELL_LED_R, DOORBELL_AMBIENT_LEVEL/2);
+  analogWrite(DOORBELL_LED_B, DOORBELL_AMBIENT_LEVEL/2);
 
   lockMailBox();
 }
 
+volatile bool mailBoxIsLocked = true;
 volatile bool doorbellTriggered = false;
 unsigned long doorbellTimeout = 0;
 int contentSensorValue = 0;
+unsigned long dbConfirmationNextTime = 0;
+const unsigned long DB_CONFIRMATION_CHECK_INTERVAL = 1000;
 
 void loop(){
   contentSensorValue = analogRead(CONTENT_SENSOR);
+  if (doorbellTriggered == false && doorbellTimeout == 0) {
+    if (contentSensorValue < CONTENT_SENSOR_TRESHOLD) {
+      analogWrite(DOORBELL_LED_R, 1.5*DOORBELL_AMBIENT_LEVEL);
+      analogWrite(DOORBELL_LED_G, DOORBELL_AMBIENT_LEVEL/2);
+      analogWrite(DOORBELL_LED_B, 1.5*DOORBELL_AMBIENT_LEVEL);
+    } else {
+      analogWrite(DOORBELL_LED_G, 1.5*DOORBELL_AMBIENT_LEVEL);
+      analogWrite(DOORBELL_LED_R, DOORBELL_AMBIENT_LEVEL/2);
+      analogWrite(DOORBELL_LED_B, DOORBELL_AMBIENT_LEVEL/2);      
+    }
+  }
+  
+  if (DEBUG) {
+    Serial.print("Content sensor level: ");
+    Serial.println(contentSensorValue);
+    delay(100);
+  }
   
   if (doorbellTriggered == true) {
-    analogWrite(DOORBELL_LED1, 255);
+    analogWrite(DOORBELL_LED_R, 255);
+    analogWrite(DOORBELL_LED_G, 255);
+    analogWrite(DOORBELL_LED_B, 255);
     doorbellTimeout = millis();
     doorbellTriggered = false;
     sendDoorbell();
@@ -73,14 +103,16 @@ void loop(){
   if (doorbellTimeout > 0) {
     if (millis() - doorbellTimeout > DOORBELL_LOCK_TIMEOUT) {
       doorbellTimeout = 0;
-      analogWrite(DOORBELL_LED1, DOORBELL_AMBIENT_LEVEL); 
+      analogWrite(DOORBELL_LED_G, DOORBELL_AMBIENT_LEVEL);
+      analogWrite(DOORBELL_LED_R, 1.5*DOORBELL_AMBIENT_LEVEL);
+      analogWrite(DOORBELL_LED_B, 1.5*DOORBELL_AMBIENT_LEVEL);
+      dbConfirmationNextTime = 0;
     } else {
       int doorbell_led_level = abs(-15 + DOORBELL_BLINK_COUNT * 30 * ((millis() - doorbellTimeout) % (DOORBELL_LOCK_TIMEOUT/DOORBELL_BLINK_COUNT)) / DOORBELL_LOCK_TIMEOUT);
       doorbell_led_level = 30 + doorbell_led_level * doorbell_led_level;
-      Serial.print(doorbell_led_level);
-      Serial.print('\t');
-      Serial.println(abs(doorbell_led_level));
-      analogWrite(DOORBELL_LED1, doorbell_led_level);
+      analogWrite(DOORBELL_LED_G, doorbell_led_level);
+      analogWrite(DOORBELL_LED_R, doorbell_led_level);
+      analogWrite(DOORBELL_LED_B, doorbell_led_level);
     }
   }
 
@@ -88,15 +120,22 @@ void loop(){
       long cs =  doorbellBtnCapacitySensor.capacitiveSensor(80);
       if (cs > 100) {
         csSum += cs;
-        if (csSum >= 1000) //c: This value is the threshold, a High value means it takes longer to trigger
+        if (csSum >= 700) //c: This value is the threshold, a High value means it takes longer to trigger
         {
           doorbellTriggered = true;
+          if (!mailBoxIsLocked) {
+            lockMailBox();
+          }
           if (csSum > 0) { csSum = 0; } //Reset
           doorbellBtnCapacitySensor.reset_CS_AutoCal(); //Stops readings
         }
       } else {
         csSum = 0; //Timeout caused by bad readings
       }
+  }
+
+  if (dbConfirmationNextTime != 0 && millis() > dbConfirmationNextTime) {
+    sendDoorbell();
   }
 
   if (!Serial.available()) return;
@@ -119,15 +158,19 @@ void loop(){
     sendHasContent();
   } else if (command.equals("contentval")) {
     sendContentSensorValue();
-  } else {
-    sendFailed("unknown command: " + command);
+  } else if (command.equals("ok")) {
+    // accept confirmation
+    dbConfirmationNextTime = 0;
   }
+//  else {
+//    sendFailed("unknown command: " + command);
+//  }
   //
 }
 
 void sendHasContent() {
   Serial.print("ok:");
-  Serial.println((analogRead(CONTENT_SENSOR) < 60) ? "1" : "0");
+  Serial.println((analogRead(CONTENT_SENSOR) < CONTENT_SENSOR_TRESHOLD) ? "1" : "0");
 }
 
 void sendContentSensorValue() {
@@ -136,7 +179,8 @@ void sendContentSensorValue() {
 }
 
 void sendDoorbell() {
-  Serial.print("db");
+  dbConfirmationNextTime = millis() + DB_CONFIRMATION_CHECK_INTERVAL;
+  Serial.println("db");
 }
 
 bool test() {
@@ -162,12 +206,14 @@ void doorbellInterrupt() {
 
 void unlockMailBox() {
  doorlockServo.write(DOORLOCK_SERVO_UNLOCKED_POS);
+ mailBoxIsLocked = false;
  sendComplete();
  digitalWrite(10, HIGH);
 }
 
 void lockMailBox() {
  doorlockServo.write(DOORLOCK_SERVO_LOCKED_POS);
+ mailBoxIsLocked = true;
  sendComplete();
  digitalWrite(10, LOW);
 }
